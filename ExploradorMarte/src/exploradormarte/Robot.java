@@ -11,14 +11,19 @@ import com.golden.gamedev.object.sprite.AdvanceSprite;
  * @author Lalo
  */
 public class Robot extends AdvanceSprite {
-    int estado;
-    int direccion;
-    int rocas;
+    int state;
+    int direction;
+    int samples;
 
 
     public Robot(){
         super();
-        estado = 0;
-        direccion = 1;
+        state = 0;
+        direction = 1;
+        samples = 0;
+    }
+    
+    public void pickSamples(){
+        samples = 1;
     }
 }
