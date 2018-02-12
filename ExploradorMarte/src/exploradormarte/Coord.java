@@ -14,12 +14,17 @@ public class Coord {
     public int y;
     
     Coord(){
-        x = 0;
-        y = 0;
+        x = -1;
+        y = -1;
     }
     
     Coord(int newX, int newY){
         x = newX;
         y = newY;
+    }
+    
+    public static boolean compare(Coord X, Coord Y){
+        if(X.x == Y.x && X.y == Y.y) return true;
+        return false;
     }
 }
