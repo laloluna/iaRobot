@@ -9,7 +9,10 @@ import com.golden.gamedev.*;
 import com.golden.gamedev.object.*;
 import java.util.Random;
 import com.golden.gamedev.object.background.*;
+import com.golden.gamedev.object.font.SystemFont;
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.util.Calendar;
 // import java.awt.event.KeyEvent;
@@ -20,20 +23,30 @@ import java.util.Calendar;
 public class Main extends Game{
     // Timer para la ejecucion por pasos
     Timer timer = new Timer(1000);
+    public static boolean showSample = false;
+    SystemFont pencil;
+    public static Robot explorer = new Robot();
     
     // Fondo con el terreno y robot y grupo de obstaculos y muestras
     Background backgnd;
-    AnimatedSprite robotSprite;
+    Sprite robotSprite;
+    Sprite ship;
+    Sprite sample;
     SpriteGroup obstacles = new SpriteGroup("Obstacles");
     SpriteGroup samples = new SpriteGroup("Samples");
+    SpriteGroup rocks = new SpriteGroup("Rocks");
     
     // Cantidad de rocas
     public static final int ROCKS = 20;
     public static final int OBSTACLES = 20;
     
     // Coordenadas de la nave
-    public static final int SHIPX = 10;
+    public static final int SHIPX = 9;
     public static final int SHIPY = 10;
+    
+    // Coordenadas de la nave
+    public static final int ROBOTX = 10;
+    public static final int ROBOTY = 10;
     
     // Dimension del mapa a explorar
     public static final int GLOBALX = 20;
@@ -55,10 +68,14 @@ public class Main extends Game{
         Thread thread = new Thread(){
             @Override
             public void run(){
+                try{
+                    sleep(4000);
+                }
+                catch(InterruptedException e){
+                }
                 int avaliableSamples = mapGeneration(ROCKS, OBSTACLES);
                 Coord currentObjective;
-                Coord currentPosition = new Coord(SHIPX, SHIPY);
-                Robot explorer = new Robot();
+                Coord currentPosition = new Coord(ROBOTX, ROBOTY);
 
                 printMatrix();
                 System.out.println();
@@ -89,21 +106,55 @@ public class Main extends Game{
                         int directionX = Integer.compare(currentPosition.x, currentObjective.x);
                         int directionY = Integer.compare(currentPosition.y, currentObjective.y);
                         currentPosition = moove(currentPosition, directionX, directionY);
+                        
+                        // Sleep para la parte grafica
                         try{
                             sleep(1000);
                         }
                         catch(InterruptedException e){
                         }
+                        
+                        // Variables para la actualizacion de la parte grafica
                         globalShip.x = currentPosition.x;
                         globalShip.y = currentPosition.y;
+                        
                         // Si esa casilla tiene muestras, aniadele una al robot
                         if(map[currentPosition.y][currentPosition.x] == 2 || map[currentPosition.y][currentPosition.x] == 1){
+                            // Se imprime la hora en la que consiguio llegar a la roca
                             Calendar calendar = Calendar.getInstance();
                             java.util.Date now = calendar.getTime();
                             java.sql.Timestamp currentTimestamp = new java.sql.Timestamp(now.getTime());
-                            System.out.println( explorer.samples + " " +currentTimestamp );
-                            explorer.samples++;
+                            System.out.println(explorer.rocks + " " +currentTimestamp);
+                            
+                            // Aniade en uno las rocas que ha revisado
+                            explorer.checkRock();
+                            if(map[currentPosition.y][currentPosition.x] == 2){
+                                // Si encuentra una muesra la aniade a su sistema
+                                explorer.pickSamples();
+                                explorer.returnShip();
+                                showSample = true;
+                                // Sleep para la parte grafica
+                                try{
+                                    sleep(1000);
+                                }
+                                catch(InterruptedException e){
+                                }
+                                showSample = false;
+                            }
                         }
+                        
+                        // Animacion de regreso a la nave
+                        if(currentPosition.x == SHIPX && currentPosition.y == SHIPY){
+                            showSample = true;
+                            // Sleep para la parte grafica
+                            try{
+                                sleep(1000);
+                            }
+                            catch(InterruptedException e){
+                            }
+                            showSample = false;
+                        }
+                        
                         // Marca las casillas como visitadas
                         map[currentPosition.y][currentPosition.x] = 8;
                         densityMap[currentPosition.y][currentPosition.x] = 1;
@@ -130,88 +181,86 @@ public class Main extends Game{
         };
         thread.start();
         GameLoader game = new GameLoader();
-        game.setup(new Main(), new Dimension(800, 800), false);
+        game.setup(new Main(), new Dimension(SIZEX/3, SIZEX/3), false);
         game.start();
         //game.run();
         
     }
     
-    public static void execute(){
-        int avaliableSamples = mapGeneration(ROCKS, OBSTACLES);
-        Coord currentObjective;
-        Coord currentPosition = new Coord(SHIPX, SHIPY);
-        Robot explorer = new Robot();
+    
+    
+    // Metodo que hace que se mueva el robot eligiendo direccion y esquivando obstaculos
+    public static Coord moove(Coord current, int difX, int difY){
+        // Se crea un random que se usara para posibles nuevas elecciones de direccion
+        Random rand = new Random();
+        Coord newCoord = new Coord(current.x, current.y);
+        int directionX = difX * -1;
+        int directionY = difY * -1;
         
-        printMatrix();
-        System.out.println();
+        int randDir;
         
-        int count = 0;
-        // Desicion de la posicion de la nave
-        while(explorer.samples < avaliableSamples){
-            map[currentPosition.y][currentPosition.x] = 8;
-            currentObjective = objectiveSelection(explorer, currentPosition);
-            
-            /*
-            //Impresion de valores
-            System.out.println("----------OBJETIVO ACTUAL------------");
-            System.out.println("x = "+currentObjective.x);
-            System.out.println("y = "+currentObjective.y);
-            
-            System.out.println("pos x = "+currentPosition.x);
-            System.out.println("pos y = "+currentPosition.y);
-            System.out.println("value = "+map[currentObjective.y][currentObjective.x]);
-            System.out.println("----------OBJETIVO ACTUAL------------");
-            */
-            
-            
-            // Parte del codigo que hace que el robot se mueva al objetivo actual
-            while(!Coord.compare(currentObjective,currentPosition)){
-                
-                // Moverme al objetivo
-                int directionX = Integer.compare(currentPosition.x, currentObjective.x);
-                int directionY = Integer.compare(currentPosition.y, currentObjective.y);
-                currentPosition = moove(currentPosition, directionX, directionY);
-                globalShip.x = currentPosition.x;
-                globalShip.y = currentPosition.y;
-                // Si esa casilla tiene muestras, aniadele una al robot
-                if(map[currentPosition.y][currentPosition.x] == 2 || map[currentPosition.y][currentPosition.x] == 1){
-                    Calendar calendar = Calendar.getInstance();
-                    java.util.Date now = calendar.getTime();
-                    java.sql.Timestamp currentTimestamp = new java.sql.Timestamp(now.getTime());
-                    System.out.println( explorer.samples + " " +currentTimestamp );
-                    explorer.samples++;
+        // Si va en diagonal
+        if(directionX != 0 && directionY != 0){
+            // Si hay un obstaculo
+            if(map[newCoord.y + directionY][newCoord.x + directionX] == 3){
+                randDir = rand.nextInt(2);
+                if(randDir == 0){
+                    directionX *= 0;
                 }
-                // Marca las casillas como visitadas
-                map[currentPosition.y][currentPosition.x] = 8;
-                densityMap[currentPosition.y][currentPosition.x] = 1;
-                
-                /*
-                //Imprimir valores DEBUG 
-                printMatrix();
-                System.out.println("------------"+count+"------------");
-                System.out.println("Obj x = "+currentObjective.x);
-                System.out.println("Obj y = "+currentObjective.y);
-                System.out.println("Pos x = "+currentPosition.x);
-                System.out.println("Pos y = "+currentPosition.y);
-                System.out.println("------------"+count+"------------");
-                */
-                
-                count++;
+                else{
+                    directionY *= 0;
+                }
             }
         }
         
-        System.out.println();
-        System.out.println(">>>>>>Matriz resultante<<<<<<<");
-        printMatrix();
+        // Si no va en diagonal
+        if(directionX == 0 || directionY == 0){
+            // Si esta bloqueado el lugar elige otro aleatoriamente
+            while(map[newCoord.y + directionY][newCoord.x + directionX] == 3){
+                do{
+                    randDir = rand.nextInt(3);
+                    directionX = randDir -1;
+
+                    randDir = rand.nextInt(3);
+                    directionY = randDir -1;
+                    // While para no salirse de la matriz
+                }while( (newCoord.y + directionY) < 0 ||
+                        (newCoord.y + directionY) >= GLOBALY ||
+                        (newCoord.x + directionX) < 0 ||
+                        (newCoord.x + directionX) >= GLOBALX);
+            }
+        }
+        
+        newCoord.x += directionX;
+        newCoord.y += directionY;
+        
+        // Manda error si la nueva posicion es una casilla de obstaculo
+        if(map[newCoord.y][newCoord.x] == 3){
+            System.out.println("Error");
+        }
+        
+        return newCoord;
     }
     
-    public static Coord moove(Coord current, int directionX, int directionY){
+    
+    // Metodo viejo que decidia la direccion pero no sirve tan bien 
+    public static Coord moove2(Coord current, int directionXX, int directionYY){
         Coord newCoord = new Coord(current.x, current.y);
+        int directionX = directionXX;
+        int directionY = directionYY;
+        
+        // Si va en diagonal
+        if(directionX != 0 && directionY != 0){
+            
+        }
+        
         // Hacia la izquierda
         if(directionX == 1){
+            // Si no hay obstaculo o se va a mover en diagonal
             if(map[newCoord.y][newCoord.x - 1] != 3 || directionY != 0){
                 newCoord.x--;
             }
+            // Si hay obstaculo y no se va en diagonal
             else if(directionY == 0){
                 if(newCoord.y > 0 && map[newCoord.y -1][newCoord.x] != 3){
                     newCoord.y--;
@@ -265,6 +314,7 @@ public class Main extends Game{
             }
         }
         
+        // Mensaje de error por si se atoro en algun obstaculo
         if(Coord.compare(newCoord, current)){
             System.out.println("ERROR");
             System.out.println("! "+current.x+" "+current.y+" ! ");
@@ -280,6 +330,7 @@ public class Main extends Game{
         return Math.abs(direction-2);
     }
     
+    // Impresion de la matriz para debugeo
     public static void printMatrix(){
         for(int i = 0; i < GLOBALX; i++){
             for(int j = 0; j < GLOBALY; j++){
@@ -289,6 +340,7 @@ public class Main extends Game{
         }
     }
     
+    // Mapa de densidad para saber por donde ya hemos visitado
     public static void densityMapGeneration(){
         for(int i = 0; i < GLOBALX; i++){
             for(int j = 0; j < GLOBALY; j++){
@@ -297,18 +349,21 @@ public class Main extends Game{
         }
     }
     
+    // Metodo para la generacion del mapa aleatorio
     public static int mapGeneration(int rocks, int obstacles){
         Random rand = new Random();
         int totalCells = GLOBALX*GLOBALY;
         int currentSamples = 0;
         
+        // Recorrido de la matriz
         for(int i = 0; i < GLOBALY; i++){
             for(int j = 0; j < GLOBALX; j++){
+                // Condicion para la generacion de las celdas de  obstaculos y muestras
                 if(currentSamples < rocks){
                     int random = rand.nextInt(totalCells);
-                    // System.out.println(random);
                     
                     if(random < rocks){
+                        // Una de cada 3 rocas va a ser una muestra
                         map[i][j] = rand.nextInt(3) == 1 ? 2 : 1;
                         currentSamples++;
                     }
@@ -361,26 +416,26 @@ public class Main extends Game{
     public static Coord nextNonRockObjective(Coord currentLoc, int step){
         Coord newObj = new Coord();
         // Array para contar los elementos visitaddos en cada cuadrante
-        // 0 = nw, 1 = ne, 2 = sw, 3 = se
+        // 0 = norOeste, 1 = norEste, 2 = surOeste, 3 = surEste
         int [] directions = {0,0,0,0};
         
         // Se cuentan los espacios visitados por cuadrante para saber cual direccion tomar
         for(int i = 0; i < GLOBALY; i++){
             for(int j = 0; j < GLOBALX; j++){
                 if(densityMap[i][j] == 0){
-                    if(i < currentLoc.y){ // North
-                        if(j < currentLoc.x){ // West
+                    if(i < currentLoc.y){ // Norte
+                        if(j < currentLoc.x){ // Oeste
                             directions[0]++;
                         }
-                        else{ // East
+                        else{ // Este
                             directions[1]++;
                         }
                     }
-                    else{ // South
-                        if(j < currentLoc.x){ // West
+                    else{ // Sur
+                        if(j < currentLoc.x){ // Oeste
                             directions[2]++;
                         }
-                        else{ // East
+                        else{ // Este
                             directions[3]++;
                         }
                     }
@@ -413,23 +468,19 @@ public class Main extends Game{
             case 0:
                 newObj.x = currentLoc.x - randStepX > 0 ? currentLoc.x - randStepX : 0;
                 newObj.y = currentLoc.y - randStepY > 0 ? currentLoc.y - randStepY : 0;
-                //System.out.println("Nor Oeste");
                 break;
             case 1:
                 // Se hace GLOBALX -1 porque sino se sale de la matriz
                 newObj.x = currentLoc.x + randStepX < GLOBALX ? currentLoc.x + randStepX : GLOBALX -1;
                 newObj.y = currentLoc.y - randStepY > 0 ? currentLoc.y - randStepY : 0;
-                //System.out.println("Nor Este");
                 break;
             case 2:
                 newObj.x = currentLoc.x - randStepX > 0 ? currentLoc.x - randStepX : 0;
                 newObj.y = currentLoc.y + randStepY < GLOBALY ? currentLoc.y + randStepY : GLOBALY -1;
-                //System.out.println("Sur Oeste");
                 break;
             case 3:
                 newObj.x = currentLoc.x + randStepX < GLOBALX ? currentLoc.x + randStepX : GLOBALX -1;
                 newObj.y = currentLoc.y + randStepY < GLOBALY ? currentLoc.y + randStepY : GLOBALY -1;
-                //System.out.println("Sur Este");
                 break;
             default:
                 break;
@@ -444,9 +495,10 @@ public class Main extends Game{
         Coord newObj = new Coord();
         
         // Si tiene las muestras entonces el objetivo es la nave
-        if(explorer.samples == 20){
+        if(explorer.state == 1){
             newObj.x = SHIPX;
             newObj.y = SHIPY;
+            explorer.leaveSamples();
         }
         // Si no tiene muestras busca la siguiente roca mas cercana
         else{
@@ -463,6 +515,7 @@ public class Main extends Game{
         return newObj;
     }
     
+    // Metodo para cargar las imagenes de las rocas y las muestras
     public void loadRenderables() {
         for(int i = 0; i < GLOBALY; i++){
             for(int j = 0; j < GLOBALX; j++){
@@ -471,8 +524,8 @@ public class Main extends Game{
                     obstacles.add(rock);
                 }
                 if(map[i][j] == 1 || map[i][j] == 2){
-                    Sprite sample = new Sprite(getImage("images/sample60.png"), j*PIXELSTEP, i*PIXELSTEP);
-                    samples.add(sample);
+                    Sprite possibleSample = new Sprite(getImage("images/sample60.png"), j*PIXELSTEP, i*PIXELSTEP);
+                    rocks.add(possibleSample);
                 }
             }
         }
@@ -480,21 +533,30 @@ public class Main extends Game{
 
     @Override
     public void initResources() {
-        // Render del robot
-        int posRobotx = PIXELSTEP*SHIPX, posRoboty = PIXELSTEP*SHIPY;
-        robotSprite = new AnimatedSprite(getImages("images/robot60.png", 1, 1), posRobotx, posRoboty);
-        robotSprite.setAnimate(false);
-        robotSprite.setLoopAnim(false);
+        // Creacion del pincel
+        Font verdana = new Font("Verdana", Font.BOLD, 12);
+        pencil = new SystemFont(verdana, Color.white);
+        // Render de la nave
+        ship = new Sprite(getImage("images/ship60.png"), SHIPX*PIXELSTEP, SHIPY*PIXELSTEP);
+        
+        // Render del robot y la muestra
+        robotSprite = new Sprite(getImage("images/robot60.png"), PIXELSTEP*ROBOTX, PIXELSTEP*ROBOTY);
+        sample = new Sprite(getImage("images/diamond60.png"), 0, 0);
+        
         
         // Generar los obstaculos y las muestras
         loadRenderables();
         
         // Fondo del escenario
         backgnd = new ImageBackground(getImage("images/terrain12.png"));
-        backgnd.setClip(200, 200, SIZEX/3, SIZEY/3);
-        samples.setBackground(backgnd);
+        backgnd.setClip(0, 0, SIZEX/3, SIZEY/3);
+        
+        // Fijar todo al background
+        rocks.setBackground(backgnd);
         obstacles.setBackground(backgnd);
+        ship.setBackground(backgnd);
         robotSprite.setBackground(backgnd);
+        sample.setBackground(backgnd);
     }
 
     @Override
@@ -502,14 +564,22 @@ public class Main extends Game{
         //execute();
         robotSprite.setX(PIXELSTEP*globalShip.x);
         robotSprite.setY(PIXELSTEP*globalShip.y);
+        sample.setX(PIXELSTEP*globalShip.x);
+        sample.setY(PIXELSTEP*globalShip.y);
         backgnd.setToCenter(robotSprite);
     }
     
     @Override
     public void render(Graphics2D g) {
         backgnd.render(g);
-        robotSprite.render(g);
         obstacles.render(g);
-        samples.render(g);
+        rocks.render(g);
+        ship.render(g);
+        robotSprite.render(g);
+        pencil.drawString(g, "Picked Samples: "+ explorer.samples, 0, 0);
+        
+        if(showSample == true){
+            sample.render(g);
+        }
     }
 }
