@@ -24,7 +24,6 @@ public class Coord {
     }
     
     public static boolean compare(Coord X, Coord Y){
-        if(X.x == Y.x && X.y == Y.y) return true;
-        return false;
+        return X.x == Y.x && X.y == Y.y;
     }
 }
